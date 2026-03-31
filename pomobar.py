@@ -103,7 +103,7 @@ class Pomodoro():
         minutes = int(remainder / 60)
         seconds = pomo.timer % 60
 
-        set = pomo.set
+        set = pomo.set + 1
 
         line = f"{hours:02d}:{minutes:02d}:{int(seconds):02d} #{set}"
 
