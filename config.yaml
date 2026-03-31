@@ -1,0 +1,14 @@
+# Default Configuration
+
+# Number of sets between long breaks
+NUM_SETS: 4
+
+# Duration of work and breaks (seconds)
+WORK_LENGTH: 1500         # 25 mins
+SHORT_BREAK_LENGTH: 300   # 5 mins
+LONG_BREAK_LENGTH: 1200   # 20 mins
+
+# Autostart settings
+AUTOSTART_WORK: False
+AUTOSTART_BREAK: True
+
