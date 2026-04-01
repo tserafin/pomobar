@@ -79,9 +79,7 @@ class Pomodoro():
                 self.current_mode = Mode.RUNNING
             elif autostart_override is not None and autostart_override == True:
                 self.current_mode = Mode.RUNNING
-            #print(f"D: Increment: Phase.WORK -> {self.phase}")
         else:
-            #print(f"D: Increment: {self.phase} -> Phase.WORK")
             self.phase = Phase.WORK
             self.timer = self.config['WORK_LENGTH']
             self.set += 1
@@ -93,7 +91,7 @@ class Pomodoro():
 
     def debug(self):
         pomo = self._retrieve_state()
-        #print(f"D: {pomo}")
+        print(f"D: {pomo}")
 
     def report(self):
         pomo = self._retrieve_state()
@@ -163,12 +161,10 @@ class Pomodoro():
 def tick(state, config):
     pomo = None
     if state.exists():
-        #print("D: Update")
         with shelve.open(state) as db:
             pomo = db['state']
         pomo.update(config)
     else:
-        #print("D: Init")
         pomo = Pomodoro(state, config)
         with shelve.open(state) as db:
             db['state'] = pomo
@@ -176,7 +172,6 @@ def tick(state, config):
 
 
 def alert():
-    #print("TIMER EXPIRED")
     pass
 
 def load_config(config_file):
@@ -187,11 +182,11 @@ def load_config(config_file):
                 return config_data
             except yaml.YAMLError as e:
                 # debug logging
-                #print("Failed to parse config file")
+                print("Failed to parse config file")
                 return None
     except Exception as e:
         # debug logging
-        #print("Failed to open config file")
+        print("Failed to open config file")
         return None
 
 
