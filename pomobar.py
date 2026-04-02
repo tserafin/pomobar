@@ -2,6 +2,7 @@
 
 import argparse
 import datetime
+import dbus
 import pathlib
 import shelve
 import sys
@@ -28,6 +29,11 @@ class Phase(Enum):
     SHORT_BREAK = 2
     LONG_BREAK = 3
 
+
+class Urgency(Enum):
+    LOW = 0
+    NORMAL = 1
+    CRITICAL = 2
 
 class Pomodoro():
     def __init__(self, state_file, config):
@@ -172,7 +178,25 @@ def tick(state, config):
 
 
 def alert():
-    pass
+    _send_notification("Timer expired!", "Time to start/stop", Urgency.NORMAL)
+
+def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
+
+    bus = dbus.SessionBus()
+    notif = bus.get_object('org.freedesktop.Notifications', 
+                           '/org/freedesktop/Notifications')
+    interface = dbus.Interface(notif, 'org.freedesktop.Notifications')
+ 
+    # Notify arguments:
+    # app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout
+    interface.Notify("Pomobar",
+                     0,
+                     "",
+                     summary,
+                     body,
+                     [],
+                     {"urgency": urgency.value},
+                     timeout)
 
 def load_config(config_file):
     try:
