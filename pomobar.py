@@ -205,12 +205,12 @@ def load_config(config_file):
                 config_data = yaml.safe_load(stream)
                 return config_data
             except yaml.YAMLError as e:
-                # debug logging
-                print("Failed to parse config file")
+                # TODO: log as debug
+                #print("Failed to parse config file")
                 return None
     except Exception as e:
-        # debug logging
-        print("Failed to open config file")
+        # TODO: log as debug
+        #print("Failed to open config file")
         return None
 
 
