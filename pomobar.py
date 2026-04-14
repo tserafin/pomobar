@@ -238,8 +238,12 @@ def main(argv=None):
                         choices=["report", "start", "stop", "skip", "reset"],
                         default="report",
                         help="Operation mode")
+    parser.add_argument("-d",
+                        "--debug",
+                        action="store_true",
+                        help="Debugging")
 
-    # Add optional --lockin arg to start and stop
+    # TODO: Add optional --lockin arg to start and stop
     # Allows for stopwatch to just keep working instead of forcing breaks
 
     args = parser.parse_args()
@@ -253,7 +257,10 @@ def main(argv=None):
 
     match args.mode:
         case "report":
-            pomo.report()
+            if args.debug:
+                pomo.debug()
+            else:
+                pomo.report()
         case "start":
             if pomo.current_mode == Mode.STOPPED:
                 pomo.start()
