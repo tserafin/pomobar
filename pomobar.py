@@ -182,10 +182,16 @@ def tick(state, config):
 
 
 def alert_work():
-    _send_notification("Timer expired!", "Time to work", Urgency.NORMAL)
+    _send_notification("Timer expired!",
+                       "Time to work",
+                       Urgency.CRITICAL,
+                       10000)
 
 def alert_break():
-    _send_notification("Timer expired!", "Time to take a break", Urgency.NORMAL)
+    _send_notification("Timer expired!",
+                       "Time to take a break",
+                       Urgency.CRITICAL,
+                       10000)
 
 def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
 
@@ -202,7 +208,7 @@ def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
                      summary,
                      body,
                      [],
-                     {"urgency": urgency.value},
+                     {"urgency": dbus.Byte(urgency.value)},
                      timeout)
 
 def load_config(config_file):
