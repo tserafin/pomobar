@@ -167,7 +167,6 @@ class Pomodoro():
         with shelve.open(self.state_file) as db:
             db['state'] = self
 
-
 def tick(state, config):
     pomo = None
     if state.exists():
@@ -180,7 +179,6 @@ def tick(state, config):
             db['state'] = pomo
     return pomo
 
-
 def alert_work():
     _send_notification("Timer expired!",
                        "Time to work",
@@ -192,6 +190,12 @@ def alert_break():
                        "Time to take a break",
                        Urgency.CRITICAL,
                        10000)
+
+def alert_custom(title, message, urgency=Urgency.NORMAL, timeout=10000):
+    _send_notification(summary=title,
+                       body=message,
+                       urgency=urgency,
+                       timeout=timeout)
 
 def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
 
@@ -277,8 +281,10 @@ def main(argv=None):
         case "start":
             if pomo.current_mode == Mode.STOPPED:
                 pomo.start()
+                alert_custom("Pomobar", "Starting timer!")
             else:
                 pomo.stop()
+                alert_custom("Pomobar", "Stopping timer!")
         case "stop":
             pomo.stop()
         case "skip":
