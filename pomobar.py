@@ -71,9 +71,9 @@ class Pomodoro():
                 if self.timer <= 0:
                     phase = self.increment_phase()
                     if phase == Phase.WORK:
-                        alert_work()
+                        alert_work(0)
                     else:
-                        alert_break()
+                        alert_break(self.config['SHORT_BREAK_LENGTH'] * 1000)
 
     def increment_phase(self, autostart_override=None):
         self.current_mode = Mode.STOPPED
@@ -179,17 +179,17 @@ def tick(state, config):
             db['state'] = pomo
     return pomo
 
-def alert_work():
+def alert_work(timeout=10000):
     _send_notification("Timer expired!",
                        "Time to work",
                        Urgency.CRITICAL,
-                       10000)
+                       timeout)
 
-def alert_break():
+def alert_break(timeout=10000):
     _send_notification("Timer expired!",
                        "Time to take a break",
                        Urgency.CRITICAL,
-                       10000)
+                       timeout)
 
 def alert_custom(title, message, urgency=Urgency.NORMAL, timeout=10000):
     _send_notification(summary=title,
