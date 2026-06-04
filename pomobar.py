@@ -3,12 +3,12 @@
 import argparse
 import datetime
 import dbus
+import enum
+import filelock
 import pathlib
 import shelve
 import sys
 import yaml
-
-from enum import Enum
 
 
 DEFAULT_NUM_SETS = 4
@@ -19,18 +19,18 @@ DEFAULT_AUTOSTART_WORK = False
 DEFAULT_AUTOSTART_BREAK = True
 
 
-class Mode(Enum):
+class Mode(enum.Enum):
     RUNNING = 1
     STOPPED = 2
 
 
-class Phase(Enum):
+class Phase(enum.Enum):
     WORK = 1
     SHORT_BREAK = 2
     LONG_BREAK = 3
 
 
-class Urgency(Enum):
+class Urgency(enum.Enum):
     LOW = 0
     NORMAL = 1
     CRITICAL = 2
@@ -38,12 +38,14 @@ class Urgency(Enum):
 class Pomodoro():
     def __init__(self, state_file, config):
         self.state_file = state_file
+        self.state_file_lock = pathlib.Path(state_file.name + ".lock")
         self.config = config
         self.current_mode = Mode.STOPPED
         self.timer = self.config['WORK_LENGTH']
         self.phase = Phase.WORK
         self.set = 0
         self.last_updated = datetime.datetime.now()
+        self.notification_ids = []
 
     def __str__(self):
         state_str = f"Pomodoro: "
@@ -52,6 +54,8 @@ class Pomodoro():
         state_str += f"timer: {self.timer}, "
         state_str += f"phase: {self.phase}, "
         state_str += f"set: {self.set + 1}, "
+        state_str += f"updated: {self.last_updated}, "
+        state_str += f"notifications: {self.notification_ids}, "
         return state_str
 
     def update(self, config):
@@ -71,9 +75,10 @@ class Pomodoro():
                 if self.timer <= 0:
                     phase = self.increment_phase()
                     if phase == Phase.WORK:
-                        alert_work(0)
+                        notification_id = alert_work(0)
                     else:
-                        alert_break(self.config['SHORT_BREAK_LENGTH'] * 1000)
+                        notification_id = alert_break(self.config['SHORT_BREAK_LENGTH'] * 1000)
+                    self.notification_ids.append(notification_id)
 
     def increment_phase(self, autostart_override=None):
         self.current_mode = Mode.STOPPED
@@ -155,47 +160,65 @@ class Pomodoro():
         self.phase = Phase.WORK
         self.set = 0
         self._write_state()
+ 
+    def dismiss(self):
+        new_list = list(self.notification_ids)
+        for id in self.notification_ids:
+            _dismiss_notification(id)
+            new_list.remove(id)
+        self.notification_ids = new_list
+        self._write_state()
 
     def _retrieve_state(self):
         pomo = None
-        with shelve.open(self.state_file) as db:
-            pomo = db['state']
+        lock = filelock.FileLock(self.state_file_lock, 10)
+
+        with lock:
+            with shelve.open(self.state_file) as db:
+                pomo = db['state']
+                db.sync()
         return pomo
 
     def _write_state(self):
         self.last_updated = datetime.datetime.now()
-        with shelve.open(self.state_file) as db:
-            db['state'] = self
+        lock = filelock.FileLock(self.state_file_lock, 10)
+
+        with lock:
+            with shelve.open(self.state_file) as db:
+                db['state'] = self
+                db.sync()
 
 def tick(state, config):
     pomo = None
     if state.exists():
+        # probably need to acquire a lock here...
         with shelve.open(state) as db:
             pomo = db['state']
         pomo.update(config)
     else:
+        # first write, don't need lock
         pomo = Pomodoro(state, config)
         with shelve.open(state) as db:
             db['state'] = pomo
     return pomo
 
 def alert_work(timeout=10000):
-    _send_notification("Timer expired!",
-                       "Time to work",
-                       Urgency.CRITICAL,
-                       timeout)
+    return _send_notification("Timer expired!",
+                              "Time to work",
+                              Urgency.CRITICAL,
+                              timeout)
 
 def alert_break(timeout=10000):
-    _send_notification("Timer expired!",
-                       "Time to take a break",
-                       Urgency.CRITICAL,
-                       timeout)
+    return _send_notification("Timer expired!",
+                              "Time to take a break",
+                              Urgency.CRITICAL,
+                              timeout)
 
 def alert_custom(title, message, urgency=Urgency.NORMAL, timeout=10000):
-    _send_notification(summary=title,
-                       body=message,
-                       urgency=urgency,
-                       timeout=timeout)
+    return _send_notification(summary=title,
+                              body=message,
+                              urgency=urgency,
+                              timeout=timeout)
 
 def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
 
@@ -206,14 +229,27 @@ def _send_notification(summary, body, urgency=Urgency.NORMAL, timeout=5000):
  
     # Notify arguments:
     # app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout
-    interface.Notify("Pomobar",
-                     0,
-                     "",
-                     summary,
-                     body,
-                     [],
-                     {"urgency": dbus.Byte(urgency.value)},
-                     timeout)
+    dbus_id = interface.Notify("Pomobar",
+                               0,
+                               "",
+                               summary,
+                               body,
+                               [],
+                               {"urgency": dbus.Byte(urgency.value)},
+                               timeout)
+
+    return int(dbus_id)
+
+def _dismiss_notification(id):
+    bus = dbus.SessionBus()
+    notif = bus.get_object('org.freedesktop.Notifications', 
+                           '/org/freedesktop/Notifications')
+    interface = dbus.Interface(notif, 'org.freedesktop.Notifications')
+
+    try:
+        interface.CloseNotification(dbus.UInt32(id))
+    except dbus.DBusException as e:
+        pass
 
 def load_config(config_file):
     try:
@@ -252,7 +288,12 @@ def main(argv=None):
                         default="./config.yaml",
                         help="Path to configuration file")
     parser.add_argument("mode",
-                        choices=["report", "start", "stop", "skip", "reset"],
+                        choices=["report",
+                                 "start",
+                                 "stop",
+                                 "skip",
+                                 "reset",
+                                 "dismiss"],
                         default="report",
                         help="Operation mode")
     parser.add_argument("-d",
@@ -264,7 +305,7 @@ def main(argv=None):
     # Allows for stopwatch to just keep working instead of forcing breaks
 
     args = parser.parse_args()
-    state_file = pathlib.Path(args.state_file)
+    state_file = pathlib.Path(args.state_file).expanduser()
 
     config = load_config(args.config_file)
     if config is None:
@@ -291,6 +332,8 @@ def main(argv=None):
             pomo.skip()
         case "reset":
             pomo.reset()
+        case "dismiss":
+            pomo.dismiss()
 
 
 if __name__ == "__main__":
